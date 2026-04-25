@@ -1,5 +1,6 @@
 import grpc
 import datetime
+import os
 
 # Generated modules. Don't touch them x2
 import thread_monitor_pb2
@@ -19,6 +20,7 @@ def print_snapshot(snapshot: thread_monitor_pb2.ThreadSnapshot):
     ts = datetime.datetime.fromtimestamp(snapshot.timestamp_ms / 1000)
     s  = snapshot.stats
     mem_pct = (s.memory_used / s.memory_total * 100) if s.memory_total else 0
+    os.system('cls' if os.name == 'nt' else 'clear')
     print(f"\n{'─'*65}")
     print(
         f"  {ts.strftime('%H:%M:%S.%f')[:-3]}  |  "
