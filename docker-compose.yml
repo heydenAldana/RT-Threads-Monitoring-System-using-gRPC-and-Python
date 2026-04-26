@@ -1,0 +1,28 @@
+version: '3.9'
+
+
+services:
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    container_name: tm_server
+    ports:
+      - "50051:50051" # expose to host for grpcurl / external clients
+    restart: unless-stopped
+
+  client:
+    build:
+      context: .
+      dockerfile: Dockerfile.client
+    container_name: tm_client
+    environment:
+      SERVER_HOST: server    # Docker DNS resolves service name → container IP
+      SERVER_PORT: "50051"
+    depends_on:
+      - server
+
+    stdin_open: true
+    tty: true
+
+    restart: unless-stopped
