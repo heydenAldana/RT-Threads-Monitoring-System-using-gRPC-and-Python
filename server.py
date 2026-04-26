@@ -1,7 +1,3 @@
-"""
-Servidor gRPC — Thread Monitor
-Lee threads del sistema con psutil y los transmite por streaming.
-"""
 import grpc
 import time
 import psutil
@@ -11,13 +7,92 @@ from concurrent import futures
 import thread_monitor_pb2
 import thread_monitor_pb2_grpc
 
+class StreamState:
+    """
+    Encapsulates the mutable state of an active stream.
+    Thread-safe using threading.Lock().
+    One instance per client connection.
+    """
+    def __init__(self):
+        self._lock = threading.Lock()
+        self.paused = False
+        self.filter_pid = 0
+        self.running = True
+        self.last_cmd = "PING"
+        self.kill_queue = queue.Queue()
+ 
+    # getters / setters thread-safe 
+    def pause(self):
+        with self._lock:
+            self.paused   = True
+            self.last_cmd = "PAUSE"
+ 
+    def resume(self):
+        with self._lock:
+            self.paused   = False
+            self.last_cmd = "RESUME"
+ 
+    def set_filter(self, pid: int):
+        with self._lock:
+            self.filter_pid = pid
+            self.last_cmd   = f"FILTER pid={pid}" if pid else "FILTER pid=0 (todos)"
+ 
+    def enqueue_kill(self, pid: int):
+        with self._lock:
+            self.last_cmd = f"KILL pid={pid}"
+        self.kill_queue.put(pid)
+ 
+    def stop(self):
+        with self._lock:
+            self.running = False
+ 
+    @property
+    def snapshot_state(self):
+        with self._lock:
+            return self.paused, self.filter_pid, self.last_cmd
+ 
+
+# This creates a separate thread for command reading
+def command_reader_thread(request_iterator, state: StreamState):
+    CMD = pb.CommandType
+    try:
+        for cmd in request_iterator:
+            ctype = cmd.command
+            if ctype == CMD.PING:
+                pass
+            elif ctype == CMD.PAUSE:
+                state.pause()
+                print(f"[CMD] PAUSE recibido")
+            elif ctype == CMD.RESUME:
+                state.resume()
+                print(f"[CMD] RESUME recibido")
+            elif ctype == CMD.FILTER:
+                state.set_filter(cmd.target_pid)
+                print(f"[CMD] FILTER pid={cmd.target_pid}")
+            elif ctype == CMD.KILL:
+                if cmd.target_pid > 0:
+                    state.enqueue_kill(cmd.target_pid)
+                    print(f"[CMD] KILL pid={cmd.target_pid} queued")
+                else:
+                    print(f"[CMD] KILL ignored: target_pid=0 is not valid")
+    except grpc.RpcError:
+        pass  # This is when client disconnects suddenly
+    finally:
+        state.stop()
+        print("[CMD] Command reader finished")
+ 
 
 # We implement all the .protoc generated logic here
 class ThreadMonitorServicer(thread_monitor_pb2_grpc.ThreadMonitorServicer):
-    def _build_snapshot(self, pid: int = 0) -> thread_monitor_pb2.ThreadSnapshot:
+    def _build_snapshot(
+        self,
+        pid: int = 0,
+        cmd_echo: str = "",
+        is_paused: bool = False,
+    ) -> pb.ThreadSnapshot:
         thread_list = []
         # Iterate through all processes (unless specified PID is provided)
-        procs = (
+         procs = (
             [psutil.Process(pid)] if pid
             else psutil.process_iter(['pid', 'name', 'status'])
         )
@@ -43,45 +118,85 @@ class ThreadMonitorServicer(thread_monitor_pb2_grpc.ThreadMonitorServicer):
             memory_used=mem.used,
             memory_total=mem.total,
         )
-        return thread_monitor_pb2.ThreadSnapshot(
+        return pb.ThreadSnapshot(
             timestamp_ms=int(time.time() * 1000),
             threads=thread_list,
             total_count=len(thread_list),
             stats=stats,
+            cmd_echo=cmd_echo,
+            is_paused=is_paused,
         )
 
     # RPC 1: unique snapshot
     def GetSnapshot(self, request, context):
         return self._build_snapshot(request.pid)
 
-    # RPC 2: Continuos Streaming
+    # RPC 2: Non-stop Streaming
     def StreamThreads(self, request, context):
-        interval_sec = max(request.interval_ms, 100) / 1000.0
-        while context.is_active():
-            yield self._build_snapshot(request.pid)
-            time.sleep(interval_sec)
+        print(f"[STREAM] Nuevo cliente conectado")
+        state = StreamState()
+        # Launch the command reader using another thread
+        reader = threading.Thread(
+            target=command_reader_thread,
+            args=(request_iterator, state),
+            daemon=True,
+            name="cmd-reader",
+        )
+        reader.start()
+        interval = 1.0  # sec
+        while context.is_active() and state.running:
+            paused, filter_pid, last_cmd = state.snapshot_state
+            # Process pending kills
+            while not state.kill_queue.empty():
+                target_pid = state.kill_queue.get_nowait()
+                try:
+                    proc = psutil.Process(target_pid)
+                    proc.terminate()  # SIGTERM
+                    print(f"[KILL] SIGTERM sent to pid={target_pid} ({proc.name()})")
+                except psutil.NoSuchProcess:
+                    print(f"[KILL] pid={target_pid} not found")
+                except psutil.AccessDenied:
+                    print(f"[KILL] Access DENIED for pid={target_pid}")
+
+            if not paused:
+                snapshot = self._build_snapshot(
+                    pid=filter_pid,
+                    cmd_echo=last_cmd,
+                    is_paused=False,
+                )
+                yield snapshot
+            else:
+                # On pause it send snapshot eevry 2s to keep the connection alive
+                yield pb.ThreadSnapshot(
+                    timestamp_ms=int(time.time() * 1000),
+                    cmd_echo=last_cmd,
+                    is_paused=True,
+                )
+            time.sleep(interval)
+        print(f"[STREAM] Client has disconnected")
 
 
 def serve(port: int = 50051):
     # Thread pool to handle concurrent petitions
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-
+    pb_grpc.add_ThreadMonitorServicer_to_server(ThreadMonitorServicer(), server)
     # Register the inplementation
     thread_monitor_pb2_grpc.add_ThreadMonitorServicer_to_server(
         ThreadMonitorServicer(), server
     )
-
     # Listens on all interfacess (IPv4 + IPv6)
     server.add_insecure_port(f'[::]:{port}')
     server.start()
     print(f"[ThreadMonitor] Server listening on port {port}")
     print("[ThreadMonitor] Ctrl+C to stop")
 
-    try:
-        server.wait_for_termination()
-    except KeyboardInterrupt:
+    def _shutdown(sig, frame):
+        print("\n[ThreadMonitor] Server is shutting down...")
         server.stop(grace=2)
-        print("\n[ThreadMonitor] Server has been stopped!")
+
+    signal.signal(signal.SIGINT, _shutdown)
+    signal.signal(signal.SIGTERM, _shutdown)
+    server.wait_for_termination()
 
 
 if __name__ == '__main__':
