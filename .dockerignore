@@ -1,0 +1,28 @@
+# Generated proto stubs
+thread_monitor_pb2.py
+thread_monitor_pb2_grpc.py
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Editor / OS
+.DS_Store
+*.swp
+*.swo
+.idea/
+.vscode/
+
+# Docs / extras (not needed at runtime)
+*.md
+*.html
+f01_*.py
+f01_*.proto

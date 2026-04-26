@@ -3,6 +3,7 @@ import threading
 import queue
 import datetime
 import sys
+import os
 
 # Generated modules. Don't touch them x2
 import thread_monitor_pb2 as pb
@@ -146,10 +147,10 @@ def print_snapshot(snapshot: pb.ThreadSnapshot):
  
  
 # MAIN CLIENT
-def run(host: str = 'localhost', port: int = 50051):
-    import os
-    host = os.getenv('SERVER_HOST', host)
-    port = int(os.getenv('SERVER_PORT', str(port)))
+def run(
+    host: str = os.getenv('SERVER_HOST', 'localhost'),
+    port: int = int(os.getenv('SERVER_PORT', '50051'))
+):
     with grpc.insecure_channel(f'{host}:{port}') as channel:
         stub = pb_grpc.ThreadMonitorStub(channel)
         print(f"[ThreadMonitor v2] Connected to {host}:{port} (bidi streaming)...")
