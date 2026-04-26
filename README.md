@@ -59,7 +59,8 @@ The client requires a TTY to receive keyboard input.
 Open a second terminal and run:
  
 ```bash
-docker compose attach client
+docker compose attach client # docker
+podman compose up --build # podman
 ```
  
 You should see the live thread table and the command prompt.
@@ -68,7 +69,8 @@ You should see the live thread table and the command prompt.
  
 ```bash
 # Ctrl+C in the compose terminal, then:
-docker compose down
+docker compose down #docker
+podman compsoe down -v # podman
 ```
 
  
