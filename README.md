@@ -2,27 +2,7 @@
 This repository serves as a useful resource to show how to use protoc to build a real time monitoring system for Threads, for educational purposes.
 
 ## Summary
-The system follows a client–server model over gRPC. The contract (specifying which data is sent and how) is defined in a .proto file shared by both sides. The server reads the operating system in real-time and streams the data, which the client then consumes and displays.
-
-## File Structure
-
-Here is a short and brief description of the project files in case you are wondering
-
-```
-thread_monitor/
-│
-├── thread_monitor.proto        # Shared contract: messages + service definition
-│                               # Edit this first whenever the API changes.
-│
-├── server.py                   # gRPC server — reads threads, handles commands
-├── client.py                   # gRPC client — displays snapshots, sends commands
-├── requirements.txt            # Python dependencies (grpcio, psutil)
-│
-├── Dockerfile.server           # Server image — compiles proto at build time
-├── Dockerfile.client           # Client image — compiles same proto at build time
-├── docker-compose.yml          # Orchestrates both services on a shared network
-└── .dockerignore               # Keeps images clean (excludes caches, docs, etc.)
-```
+The system follows a client–server model over gRPC. The contract (specifying which data is sent and how) is defined in a .proto file shared by both sides. The server reads the operating system in real-time and streams the data, which the client then consumes and displays in a web view with any browser.
 
 ## How the proto contract works
  
@@ -54,16 +34,10 @@ docker compose up --build
 podman compose up --build # podman
 ```
  
-### Attach the interactive client
+### Web: The interactive client
  
-The client requires a TTY to receive keyboard input.
-Open a second terminal and run:
- 
-```bash
-docker compose attach client # docker
-```
- 
-You should see the live thread table and the command prompt.
+The client can interact with the server with http://localhost:3000 in the browser
+You should see the live thread table and the command options there.
  
 ### Stop
  
@@ -101,6 +75,8 @@ python server.py
 ```bash
 python client.py
 ```
+
+You can also put http://localhost:3000 if you want to see the UI
 
 ## Testing the unary RPC with grpcurl
  
