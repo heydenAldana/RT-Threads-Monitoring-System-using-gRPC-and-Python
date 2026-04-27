@@ -5,42 +5,36 @@ const http = require('http');
 
 const PROTO_PATH = __dirname + '/thread_monitor.proto';
 const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
-  keepCase: true, longs: String, enums: String, defaults: true, oneofs: true
+  keepCase: true, longs: String, enums: Number,
+  defaults: true, oneofs: true
 });
 const proto = grpc.loadPackageDefinition(packageDefinition).threadmonitor;
 
 const httpServer = http.createServer();
-const io = new Server(httpServer, {
-  cors: { origin: '*' } 
-});
+const io = new Server(httpServer, { cors: { origin: '*' } });
 
 const GRPC_HOST = process.env.GRPC_SERVER || 'localhost:50051';
 
 io.on('connection', (socket) => {
-  console.log('Frontend conectado vía WebSocket');
+  console.log('Frontend connected');
   
-  // Initiate gRPC client
   const grpcClient = new proto.ThreadMonitor(GRPC_HOST, grpc.credentials.createInsecure());
   const call = grpcClient.StreamThreads();
 
-  call.on('data', (snapshot) => {
-    socket.emit('snapshot', snapshot);
-  });
-
-  call.on('error', (err) => console.error('Error gRPC:', err));
+  call.on('data', (snapshot) => socket.emit('snapshot', snapshot));
+  call.on('error', (err) => console.error('gRPC Error:', err.message));
+  call.on('end', () => console.log('gRPC flow is over'));
 
   socket.on('command', (cmdData) => {
-    call.write(cmdData);
+    call.write(cmdData); 
   });
 
-  call.write({ command: 'PING' });
+  call.write({ command: 0, target_pid: 0, argument: "" });
 
   socket.on('disconnect', () => {
     console.log('Frontend disconnected');
-    call.end();
+    call.end(); 
   });
 });
 
-httpServer.listen(3001, () => {
-  console.log('Gateway WebSocket corriendo en puerto 3001');
-});
+httpServer.listen(3001, () => console.log('Gateway en puerto 3001'));

@@ -2,8 +2,8 @@ version: '3.9'
 
 services:
   server:
-    pid: "host"
-    privileged: true
+    #pid: "host"
+    #privileged: true
     build:
       context: .
       dockerfile: Dockerfile.server
