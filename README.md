@@ -51,6 +51,7 @@ while the client sends commands — both directions over the same HTTP/2 connect
 ```bash
 # Build images and start both services
 docker compose up --build
+podman compose up --build # podman
 ```
  
 ### Attach the interactive client
@@ -60,7 +61,6 @@ Open a second terminal and run:
  
 ```bash
 docker compose attach client # docker
-podman compose up --build # podman
 ```
  
 You should see the live thread table and the command prompt.
