@@ -65,10 +65,10 @@ def command_reader_thread(request_iterator, state: StreamState):
                 pass
             elif ctype == CMD.PAUSE:
                 state.pause()
-                print(f"[CMD] PAUSE recibido")
+                print(f"[CMD] PAUSE")
             elif ctype == CMD.RESUME:
                 state.resume()
-                print(f"[CMD] RESUME recibido")
+                print(f"[CMD] RESUME")
             elif ctype == CMD.FILTER:
                 state.set_filter(cmd.target_pid)
                 print(f"[CMD] FILTER pid={cmd.target_pid}")

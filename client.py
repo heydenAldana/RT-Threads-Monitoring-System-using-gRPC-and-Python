@@ -78,9 +78,8 @@ def keyboard_reader():
             if pid == 0:
                 print("  [WARNING]  KILL requires an specific pid (≠ 0)")
                 continue
-            # Confirmación de seguridad
-            confirm = input(f"  ¿Enviar SIGTERM a pid={pid}? [s/N]: ").strip().lower()
-            if confirm == 's':
+            confirm = input(f"  Send SIGTERM yo pid={pid}? [y/N]: ").strip().lower()
+            if confirm == 'y':
                 _cmd_queue.put(pb.ClientCommand(
                     command=pb.CommandType.KILL,
                     target_pid=pid,
