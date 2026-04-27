@@ -1,0 +1,55 @@
+syntax = "proto3";
+
+package threadmonitor;
+
+service ThreadMonitor {
+  rpc GetSnapshot (SnapshotRequest) returns (ThreadSnapshot);
+  rpc StreamThreads (stream ClientCommand)  returns (stream ThreadSnapshot);
+}
+
+enum CommandType {
+  PING = 0;
+  PAUSE = 1;
+  RESUME = 2;
+  FILTER = 3; 
+  KILL = 4;  
+}
+
+message ClientCommand {
+  CommandType command = 1;
+  int32 target_pid = 2;
+  string argument = 3; 
+}
+
+message SnapshotRequest {
+  int32 pid = 1;
+}
+
+message StreamRequest {
+  int32 interval_ms = 1; 
+  int32 pid = 2; 
+}
+
+message ThreadInfo {
+  int32 tid = 1;  
+  int32 pid = 2;  
+  string process_name = 3;  
+  string status = 4; 
+  double user_time = 5; 
+  double system_time = 6;
+}
+
+message SystemStats {
+  float cpu_percent = 1;
+  int64 memory_used = 2; 
+  int64 memory_total = 3; 
+}
+
+message ThreadSnapshot {
+  int64 timestamp_ms = 1; 
+  repeated ThreadInfo threads = 2; 
+  int32 total_count = 3;  
+  SystemStats stats = 4;
+  string cmd_echo = 5;
+  bool is_paused = 6;  
+}
