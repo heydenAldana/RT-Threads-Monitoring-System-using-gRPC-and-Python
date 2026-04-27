@@ -1,30 +1,35 @@
 version: '3.9'
 
-
 services:
   server:
-    #pid: "host"
-    #privileged: true
+    pid: "host"
+    privileged: true
     build:
       context: .
       dockerfile: Dockerfile.server
     container_name: tm_server
     ports:
-      - "50051:50051" # expose to host for grpcurl / external clients
+      - "50051:50051"
     restart: unless-stopped
 
-  client:
+  gateway:
     build:
-      context: .
-      dockerfile: Dockerfile.client
-    container_name: tm_client
+      context: ./gateway
+    container_name: tm_gateway
+    ports:
+      - "3001:3001"
     environment:
-      SERVER_HOST: server    # Docker DNS resolves service name → container IP
-      SERVER_PORT: "50051"
+      - GRPC_SERVER=server:50051
     depends_on:
       - server
+    restart: unless-stopped
 
-    stdin_open: true
-    tty: true
-
+  frontend:
+    build:
+      context: ./frontend
+    container_name: tm_react
+    ports:
+      - "3000:3000"
+    depends_on:
+      - gateway
     restart: unless-stopped
